@@ -44,30 +44,83 @@ class PipeGameLogic:
         "LEFT": LEFT
     }
 
-    def __init__(self, size=5):
-        # Ví dụ màn chơi 5x5
-        # Example 5x5 level
-        level_1 = {
-            "size": 5,
-            "grid_type": [
-                [self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0, 0, self.PIPE_STRAIGHT],
-                [0, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0],
-                [0, 0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, 0],
-                [0, self.PIPE_STRAIGHT, 0, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT],
-                [self.PIPE_L_SHAPE, self.PIPE_L_SHAPE, 0, 0, self.PIPE_STRAIGHT]
-            ],
-            "grid_rotation": [
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0]
-            ],
-            "start_pos": (0, 0),
-            "end_pos": (4, 4),
-            "source_direction": "TOP"
+    def __init__(self):
+        # Mặc định bắt đầu từ màn 1
+        # Default start from level 1
+        self.current_level = 1
+        self.source_direction_locked = True
+        self.load_level_by_number(1)
+
+    def load_level_by_number(self, level_num):
+        """Tải màn chơi dựa trên số thứ tự"""
+        self.current_level = level_num
+        
+        # Màn 1 & 2: Khóa hướng nguồn. Màn 3+: Mở khóa.
+        # Level 1 & 2: Lock source direction. Level 3+: Unlock.
+        if level_num >= 3:
+            self.source_direction_locked = False
+        else:
+            self.source_direction_locked = True
+
+        # Dữ liệu mẫu cho các màn chơi
+        levels = {
+            1: {
+                "size": 5,
+                "grid_type": [
+                    [self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0, 0, self.PIPE_STRAIGHT],
+                    [0, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0],
+                    [0, 0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, 0],
+                    [0, self.PIPE_STRAIGHT, 0, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT],
+                    [self.PIPE_L_SHAPE, self.PIPE_L_SHAPE, 0, 0, self.PIPE_STRAIGHT]
+                ],
+                "grid_rotation": [[0]*5 for _ in range(5)],
+                "start_pos": (0, 0),
+                "end_pos": (4, 4),
+                "source_direction": "TOP"
+            },
+            2: {
+                "size": 5,
+                "grid_type": [
+                    [self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT, 0, 0],
+                    [0, 0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, 0],
+                    [0, self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0, 0],
+                    [0, self.PIPE_STRAIGHT, 0, 0, 0],
+                    [0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT, self.PIPE_L_SHAPE]
+                ],
+                "grid_rotation": [[0]*5 for _ in range(5)],
+                "start_pos": (0, 0),
+                "end_pos": (4, 4),
+                "source_direction": "LEFT"
+            },
+            3: {
+                "size": 5,
+                "grid_type": [
+                    [self.PIPE_T_SHAPE, self.PIPE_STRAIGHT, self.PIPE_L_SHAPE, 0, 0],
+                    [0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT, 0],
+                    [0, 0, self.PIPE_STRAIGHT, 0, self.PIPE_L_SHAPE],
+                    [0, 0, self.PIPE_L_SHAPE, self.PIPE_STRAIGHT, self.PIPE_STRAIGHT],
+                    [0, 0, 0, 0, self.PIPE_STRAIGHT]
+                ],
+                "grid_rotation": [[0]*5 for _ in range(5)],
+                "start_pos": (0, 0),
+                "end_pos": (4, 4),
+                "source_direction": "TOP"
+            }
         }
-        self.load_level(level_1)
+        
+        data = levels.get(level_num, levels[1])
+        self.load_level(data)
+
+    def set_source_direction(self, direction):
+        """Cập nhật hướng nguồn nước nếu không bị khóa"""
+        if not self.source_direction_locked:
+            if direction in self.DIRECTION_MAP:
+                self.source_direction = direction
+                print(f"Hướng nguồn đã đổi thành: {direction}")
+                return True
+        else:
+            print("Màn chơi này không cho phép đổi hướng nguồn!")
+        return False
 
 
     def rotate_pipe(self, r, c):
