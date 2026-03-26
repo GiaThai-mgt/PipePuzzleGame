@@ -9,7 +9,7 @@ class AISolver:
         """
         print("AI đang tính toán đường đi tối ưu...")
         
-        # Ví dụ: Giả sử AI thấy ô (1, 2) cần xoay 1 lần
+        # Ví dụ: Giả sử AI thấy ô (1, 2) cần xoay 1 
         solutions = [(1, 2, 1)] 
         return solutions
 
