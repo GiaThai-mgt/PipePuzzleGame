@@ -49,59 +49,85 @@ class PipeGameLogic:
     
     def load_level(self, level):
         self.current_level = level
-        # Bản đồ đã được thiết kế CHẮC CHẮN CÓ LỜI GIẢI
+        # Khởi tạo bản đồ thiết kế rối dần từ rễ đến khó
         if level == 1:
+            # Level 1: 5x5 Nhẹ nhàng, dễ thở, một số lượng ống rác (noise) nhỏ
             self.size = 5
             self.grid_type = [
-                [1, 2, 1, 2, 0],
-                [0, 1, 0, 1, 0],
-                [0, 2, 1, 2, 0],
-                [0, 0, 0, 1, 2],
-                [0, 0, 0, 2, 1]
+                [1, 2, 0, 2, 1],
+                [2, 1, 0, 1, 0],
+                [0, 2, 1, 2, 1],
+                [1, 0, 2, 1, 0],
+                [0, 1, 0, 2, 1]
             ]
             self.start_pos = (0, 0)
             self.end_pos = (4, 4)
             self.source_direction = self.LEFT
             
         elif level == 2:
+            # Level 2: 6x6 Bắt đầu có T-shape và Cross đánh lừa hướng đi lưới nhện
             self.size = 6
             self.grid_type = [
-                [1, 2, 2, 1, 0, 0],
-                [0, 1, 0, 2, 1, 0],
-                [0, 2, 4, 2, 0, 0],
-                [0, 0, 1, 1, 2, 0],
-                [0, 0, 0, 2, 1, 2],
-                [0, 0, 0, 0, 0, 1]
+                [2, 2, 1, 0, 2, 1],
+                [1, 1, 0, 2, 1, 0],
+                [2, 3, 1, 2, 0, 2],
+                [0, 2, 2, 4, 2, 1],
+                [1, 0, 1, 1, 1, 0],
+                [0, 2, 1, 2, 2, 1] 
             ]
             self.start_pos = (0, 0)
             self.end_pos = (5, 5)
             self.source_direction = self.LEFT
             
         elif level == 3:
+            # Level 3: 7x7 Có ống đường một chiều (One Way - số 5) mấu chốt, đánh lừa xoay
             self.size = 7
             self.grid_type = [
-                [1, 1, 2, 0, 0, 0, 0],
-                [0, 0, 5, 0, 0, 0, 0],
-                [0, 0, 2, 1, 4, 2, 0],
-                [0, 0, 0, 0, 0, 5, 0],
-                [0, 0, 0, 2, 5, 2, 0],
-                [0, 0, 0, 1, 0, 0, 0],
-                [0, 0, 0, 2, 1, 1, 1]
+                [2, 1, 2, 0, 2, 1, 2],
+                [1, 5, 3, 1, 2, 0, 1],
+                [0, 2, 1, 2, 1, 2, 0],
+                [1, 2, 2, 4, 5, 2, 1],
+                [2, 5, 1, 1, 0, 1, 2],
+                [0, 2, 1, 4, 2, 2, 2],
+                [1, 0, 2, 1, 1, 2, 1]
             ]
-            self.start_pos = (0, 0)
+            self.start_pos = (1, 0)
             self.end_pos = (6, 6)
             self.source_direction = self.LEFT
-       
+            
+        elif level == 4:
+            # Level 4: 8x8 Mê Cung Ác Mộng (Nightmare), dồn toàn bộ ống T, Cross, 1 chiều chi chít.
+            self.size = 8
+            self.grid_type = [
+                [2, 2, 1, 2, 4, 2, 1, 2],
+                [3, 1, 4, 1, 2, 5, 2, 1],
+                [2, 1, 5, 4, 1, 2, 2, 4],
+                [1, 2, 1, 2, 2, 1, 3, 2],
+                [2, 4, 2, 5, 1, 2, 1, 1],
+                [1, 1, 3, 2, 1, 4, 2, 2],
+                [2, 2, 2, 1, 4, 1, 2, 2],
+                [1, 2, 2, 1, 3, 1, 2, 1]
+            ]
+            self.start_pos = (0, 0)
+            self.end_pos = (7, 7)
+            self.source_direction = self.LEFT
+
         # Quay ngẫu nhiên ban đầu để người chơi tự giải
         self.grid_rotation = [[0 for _ in range(self.size)] for _ in range(self.size)]
         for r in range(self.size):
             for c in range(self.size):
                 if self.grid_type[r][c] == self.PIPE_ONE_WAY:
-                    # Thiết lập góc quay cứng cho mũi tên để đảm bảo có nghiệm
-                    if (r, c) == (1, 2): self.grid_rotation[r][c] = 2  # Hướng DOWN (vào u, ra d)
-                    elif (r, c) == (3, 5): self.grid_rotation[r][c] = 2 # Hướng DOWN
-                    elif (r, c) == (4, 4): self.grid_rotation[r][c] = 3 # Hướng LEFT
-                    else: self.grid_rotation[r][c] = 0
+                    # Thiết lập góc quay cứng bắt buộc cho ống một chiều theo map thiết kế
+                    if self.current_level == 3:
+                        if (r, c) == (1, 1): self.grid_rotation[r][c] = 1 # Trái -> Phải
+                        elif (r, c) == (4, 1): self.grid_rotation[r][c] = 0 # Trên -> Dưới
+                        elif (r, c) == (3, 4): self.grid_rotation[r][c] = 1 # Trái -> Phải
+                        else: self.grid_rotation[r][c] = 0
+                    elif self.current_level == 4:
+                        if (r, c) == (2, 2): self.grid_rotation[r][c] = 1 # Trái -> Phải
+                        elif (r, c) == (1, 5): self.grid_rotation[r][c] = 0 # Trên -> Dưới
+                        elif (r, c) == (4, 3): self.grid_rotation[r][c] = 2 # Dưới -> Trên
+                        else: self.grid_rotation[r][c] = 0
                 elif self.grid_type[r][c] != self.PIPE_EMPTY:
                     self.grid_rotation[r][c] = random.randint(0, 3)
         

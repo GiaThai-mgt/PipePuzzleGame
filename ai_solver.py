@@ -5,7 +5,124 @@ class PipeGameAI:
         self.logic = logic
 
     def solve(self):
-        # Thuật toán mô phỏng BFS/A* để tìm chuỗi Rotations tối ưu
+        print("AI: Đang thử giải bằng thuật toán Leo Đồi...")
+        solution = self.solve_hill_climbing()
+        
+        if solution is not None:
+            print("AI: Leo đồi thành công!")
+            return solution
+            
+        print("AI: Leo đồi vướng bước cục bộ (kẹt đường)! Chuyển sang dùng A* để đảm bảo phân tích...")
+        solution = self.solve_astar()
+        return solution
+        
+    def solve_hill_climbing(self):
+        # Thuật toán Leo Đồi (Hill Climbing) - Ưu tiên chọn nhánh có Heuristic nhỏ nhất (tham lam)
+        start_r, start_c = self.logic.start_pos
+        end_r, end_c = self.logic.end_pos
+        initial_entry_dir = self.logic.source_direction
+        
+        current_state = (start_r, start_c, initial_entry_dir)
+        came_from = {}
+        visited = set()
+        visited.add(current_state)
+        
+        MAX_STEPS = 1000
+        step = 0
+        
+        while step < MAX_STEPS:
+            step += 1
+            r, c, entry_dir = current_state
+            
+            # Kiểm tra xem vòi nước đã tới đích chưa
+            if (r, c) == (end_r, end_c):
+                # Kiểm tra xem đầu ra của đích có khớp chiều không
+                cur_type = self.logic.grid_type[r][c]
+                valid_end_rot = -1
+                for rot in range(4):
+                    if entry_dir in self.logic.PIPE_CONNECTIONS[cur_type][rot]:
+                        valid_end_rot = rot
+                        break
+                if valid_end_rot != -1:
+                    return self.reconstruct_path(came_from, current_state, valid_end_rot)
+                else:
+                    return None
+            
+            cur_type = self.logic.grid_type[r][c]
+            best_next_state = None
+            best_h = float('inf')
+            best_rot = -1
+            
+            # Khám phá tất cả các trạng thái kề kế tiếp
+            for rot in range(4):
+                if cur_type == self.logic.PIPE_ONE_WAY and rot != self.logic.grid_rotation[r][c]:
+                    continue
+                    
+                cur_opens = self.logic.PIPE_CONNECTIONS[cur_type][rot]
+                if entry_dir not in cur_opens:
+                    continue
+                
+                # Check ONE_WAY rule
+                if cur_type == self.logic.PIPE_ONE_WAY:
+                    allowed_entry = None
+                    if rot == 0: allowed_entry = self.logic.BOTTOM
+                    elif rot == 1: allowed_entry = self.logic.LEFT
+                    elif rot == 2: allowed_entry = self.logic.TOP
+                    elif rot == 3: allowed_entry = self.logic.RIGHT
+                    
+                    if entry_dir != allowed_entry:
+                        continue
+                        
+                for outgoing_dir in cur_opens:
+                    if outgoing_dir == entry_dir:
+                        continue
+                        
+                    dr, dc = 0, 0
+                    if outgoing_dir == self.logic.TOP: dr = -1
+                    elif outgoing_dir == self.logic.BOTTOM: dr = 1
+                    elif outgoing_dir == self.logic.LEFT: dc = -1
+                    elif outgoing_dir == self.logic.RIGHT: dc = 1
+                    
+                    nr, nc = r + dr, c + dc
+                    if not (0 <= nr < self.logic.size and 0 <= nc < self.logic.size):
+                        continue
+                    if self.logic.grid_type[nr][nc] == self.logic.PIPE_EMPTY:
+                        continue
+                        
+                    next_entry_dir = -1
+                    if outgoing_dir == self.logic.TOP: next_entry_dir = self.logic.BOTTOM
+                    elif outgoing_dir == self.logic.BOTTOM: next_entry_dir = self.logic.TOP
+                    elif outgoing_dir == self.logic.LEFT: next_entry_dir = self.logic.RIGHT
+                    elif outgoing_dir == self.logic.RIGHT: next_entry_dir = self.logic.LEFT
+                    
+                    next_state = (nr, nc, next_entry_dir)
+                    
+                    # Bước đi không được trùng lại trạng thái trước đó (tránh lặp vô hạn)
+                    if next_state in visited:
+                        continue
+                        
+                    # Tính Heuristic Manhattan Distance
+                    h = abs(nr - end_r) + abs(nc - end_c)
+                    
+                    # Chọn bước đi có Heuristic NHỎ NHẤT (gần đích nhất)
+                    if h < best_h:
+                        best_h = h
+                        best_next_state = next_state
+                        best_rot = rot
+                        
+            # Cực đại địa phương (Local Optima) - Bị tắc đường
+            if best_next_state is None:
+                return None
+                
+            # Cập nhật đường đi
+            came_from[best_next_state] = (current_state, best_rot)
+            visited.add(best_next_state)
+            current_state = best_next_state
+            
+        return None
+
+    def solve_astar(self):
+        # Thuật toán mô phỏng A* để tìm chuỗi Rotations tối ưu
         start_r, start_c = self.logic.start_pos
         end_r, end_c = self.logic.end_pos
         
