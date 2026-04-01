@@ -24,15 +24,24 @@ def main():
                     mouse_pos = pygame.mouse.get_pos()
                     
                     # 1. UI Buttons
+                    if gui.btn_back.collidepoint(mouse_pos):
+                        prev_lvl = logic.current_level - 1 if logic.current_level > 1 else logic.max_level
+                        logic.load_level(prev_lvl)
+                        is_win, visited = logic.check_flow()
+                        gui.set_active_button("back")
+                        continue
+
                     if gui.btn_next.collidepoint(mouse_pos):
                         next_lvl = (logic.current_level % logic.max_level) + 1
                         logic.load_level(next_lvl)
                         is_win, visited = logic.check_flow()
+                        gui.set_active_button("next")
                         continue
                         
                     if gui.btn_reset.collidepoint(mouse_pos):
                         logic.load_level(logic.current_level)
                         is_win, visited = logic.check_flow()
+                        gui.set_active_button("reset")
                         continue
                         
                     if gui.btn_ai.collidepoint(mouse_pos):
@@ -43,6 +52,7 @@ def main():
                             is_win, visited = logic.check_flow()
                         else:
                             print("Không tìm được đường đi")
+                        gui.set_active_button("ai")
                         continue
                     
                     # 2. Grid Interactors
