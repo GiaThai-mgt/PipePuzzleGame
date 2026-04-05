@@ -49,6 +49,12 @@ class PipeGameGraphics:
         self.grid_area_size = 600
         self.font = pygame.font.SysFont("Segoe UI", 28, bold=True)
         self.font_small = pygame.font.SysFont("Segoe UI", 20, bold=False)
+        self.font_title = pygame.font.SysFont("Segoe UI", 72, bold=True)
+        self.font_header = pygame.font.SysFont("Segoe UI", 48, bold=True)
+        self.font_star = pygame.font.SysFont("Segoe UI", 24, bold=True)
+        self.font_lock = pygame.font.SysFont("Segoe UI", 14, bold=True)
+        self.font_go_msg = pygame.font.SysFont("Segoe UI", 64, bold=True)
+        self.font_go_sub = pygame.font.SysFont("Segoe UI", 32)
 
         # Kích thước khung lưới tuỳ thuộc vào Level
         self.cell_size = 0
@@ -57,6 +63,11 @@ class PipeGameGraphics:
         self.pipe_width = 0
         self.active_button = None      # nút đang được bấm
         self.active_until = 0          # thời gian sáng nút
+
+        # NEW: Storage for menu and level select buttons
+        self.btn_play = None
+        self.btn_home = None
+        self.level_btns = []
 
     def set_active_button(self, button_name):
         self.active_button = button_name
@@ -152,14 +163,14 @@ class PipeGameGraphics:
     # =========================
     # HÀM DRAW CHÍNH
     # =========================
-    def draw(self, logic, flow_visited):
+    def draw(self, logic, flow_visited, run_time, hints_left=3, suggestions=None):
         self.draw_gradient_background()
         self.update_grid_params(logic.size)
         self.draw_grid_frame(logic)
         mouse_pos = pygame.mouse.get_pos()
-        hover_cell = self.get_grid_pos(mouse_pos)
+        hover_cell = self.get_grid_pos(mouse_pos, logic)
 
-                # Vẽ từng ô + pipe
+        # Vẽ từng ô + pipe
         for r in range(logic.size):
             for c in range(logic.size):
                 cx = self.offset_x + c * self.cell_size
@@ -181,10 +192,111 @@ class PipeGameGraphics:
 
                 if pipe_type != 0:
                     is_flow = (r, c) in flow_visited
+                    # Draw suggestion glow if active
+                    if isinstance(suggestions, dict) and (r, c) in suggestions:
+                        self.draw_cell_glow(rect, (255, 255, 0)) # Yellow glow for hint
+
                     self.draw_pipe(pipe_type, pipe_rot, rect, logic, highlight=is_flow)
 
-        self.draw_buttons()
+        self.draw_stats(logic, flow_visited, run_time)
+        self.draw_buttons(hints_left)
+        self.draw_home_button()
         pygame.display.flip()
+
+    def draw_home_button(self):
+        # Home button at top left
+        self.btn_home = pygame.Rect(20, 20, 50, 50)
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = self.btn_home.collidepoint(mouse_pos)
+        
+        # Simple icon: house or "M"
+        color = (0, 220, 255) if hovered else (180, 180, 180)
+        pygame.draw.rect(self.screen, color, self.btn_home, 2, border_radius=8)
+        
+        # Draw a simple house shape
+        x, y = self.btn_home.centerx, self.btn_home.centery
+        pygame.draw.polygon(self.screen, color, [(x, y-12), (x-12, y), (x+12, y)])
+        pygame.draw.rect(self.screen, color, (x-8, y, 16, 12), 2)
+
+    def draw_stats(self, logic, flow_visited, run_time):
+        """Vẽ thanh thông tin ở phía trên cùng với Time Bar và Rotation Limit"""
+        current_level = logic.current_level
+        rotations = logic.rotation_count
+        max_rots = logic.max_rotations
+        
+        # --- HUD Area ---
+        hud_w, hud_h = 500, 44
+        hud_rect = pygame.Rect((self.width - hud_w) // 2, 8, hud_w, hud_h)
+        hud_surf = pygame.Surface((hud_w, hud_h), pygame.SRCALPHA)
+        pygame.draw.rect(hud_surf, (20, 35, 55, 180), (0, 0, hud_w, hud_h), border_radius=15)
+        pygame.draw.rect(hud_surf, (0, 200, 255, 80), (0, 0, hud_w, hud_h), 2, border_radius=15)
+        self.screen.blit(hud_surf, hud_rect.topleft)
+
+        # --- Time Bar ---
+        bar_w = 400
+        bar_h = 8
+        bar_x = (self.width - bar_w) // 2
+        bar_y = hud_rect.bottom + 10
+        
+        # Background bar
+        pygame.draw.rect(self.screen, (40, 40, 60), (bar_x, bar_y, bar_w, bar_h), border_radius=4)
+        
+        # Foreground bar (remaining time)
+        time_ratio = run_time / (logic.time_limit * 1000)
+        time_ratio = max(0, min(1, time_ratio))
+        
+        color = (0, 255, 100) if time_ratio > 0.6 else (255, 200, 0) if time_ratio > 0.3 else (255, 50, 50)
+        pygame.draw.rect(self.screen, color, (bar_x, bar_y, int(bar_w * time_ratio), bar_h), border_radius=4)
+
+        # --- Draw Milestones and Stars ---
+        t1 = 0.5 if current_level == 1 else 0.7
+        t2 = 0.2 if current_level == 1 else 0.4
+        
+        milestones = [
+            (t1, time_ratio >= t1), # Star 3
+            (t2, time_ratio >= t2), # Star 2
+            (0.02, time_ratio > 0)  # Star 1 (at the very left)
+        ]
+        
+        for i, (t_val, is_active) in enumerate(milestones):
+            mx = bar_x + int(bar_w * t_val)
+            # Draw notch on the bar
+            pygame.draw.line(self.screen, (255, 255, 255), (mx, bar_y - 2), (mx, bar_y + bar_h + 2), 2)
+            
+            # Draw tiny star above the notch
+            sy = bar_y - 12
+            sx = mx - 8
+            star_color = (255, 215, 0) if is_active else (80, 80, 80)
+            
+            # Mini star polygon (scaled down from original)
+            pygame.draw.polygon(self.screen, star_color, [
+                (sx+8, sy-8), (sx+10, sy-3), (sx+16, sy-3), (sx+11, sy+1), 
+                (sx+13, sy+7), (sx+8, sy+4), (sx+3, sy+7), (sx+5, sy+1), 
+                (sx, sy-3), (sx+6, sy-3)
+            ])
+
+        # --- Stats Text ---
+        font_stats = pygame.font.SysFont("Segoe UI", 18, bold=True)
+        
+        # Time string
+        remaining_seconds = max(0, int(run_time // 1000))
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
+        time_str = f"{minutes:02}:{seconds:02}"
+        
+        # Rotations string
+        rot_str = f"🔄 {rotations}/{max_rots}" if max_rots < 900 else f"🔄 {rotations}"
+        
+        # Lvl string
+        lvl_str = f"Level {current_level}"
+        
+        texts = [lvl_str, rot_str, time_str]
+        spacing = hud_w // 4
+        
+        for i, text in enumerate(texts):
+            txt_surf = font_stats.render(text, True, (255, 255, 255))
+            txt_rect = txt_surf.get_rect(center=(hud_rect.left + (i + 1) * spacing, hud_rect.centery))
+            self.screen.blit(txt_surf, txt_rect)
 
     def draw_cell_glow(self, rect, color):
         x, y, w, h = rect
@@ -245,6 +357,11 @@ class PipeGameGraphics:
                 arms = [0, 2]
             else:
                 arms = [1, 3]
+        elif p_type == logic.PIPE_LOCKED:
+            if rot == 0 or rot == 2:
+                arms = [0, 2]
+            else:
+                arms = [1, 3]
 
         # 1) Bóng đổ pastel
         shadow_surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -252,29 +369,42 @@ class PipeGameGraphics:
             self.draw_pastel_arm(shadow_surf, arm, w, h, pw, self.PIPE_SHADOW, offset=5, alpha=60)
         self.screen.blit(shadow_surf, (x, y))
 
-        # 2) Thân ống gradient xanh đậm, mượt
+        # 2) Thân ống gradient
         body_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        for arm in arms:
-            self.draw_gradient_arm(body_surf, arm, w, h, pw)
+        if p_type == logic.PIPE_LOCKED:
+            # Locked pipes have a darker, more industrial look
+            locked_color = (100, 100, 110)
+            for arm in arms:
+                self.draw_pastel_arm(body_surf, arm, w, h, pw, locked_color, alpha=255)
+        else:
+            for arm in arms:
+                self.draw_gradient_arm(body_surf, arm, w, h, pw)
         self.screen.blit(body_surf, (x, y))
 
         # 3) Viền ngoài pastel
         edge_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        edge_color = (255, 80, 80) if p_type == logic.PIPE_LOCKED else self.PIPE_EDGE
         for arm in arms:
-            self.draw_pastel_arm(edge_surf, arm, w, h, pw, self.PIPE_EDGE, offset=0, alpha=180, outline=True)
-        pygame.draw.ellipse(edge_surf, self.PIPE_EDGE, (w//2 - pw//2, h//2 - pw//2, pw, pw), 2)
+            self.draw_pastel_arm(edge_surf, arm, w, h, pw, edge_color, offset=0, alpha=180, outline=True)
+        pygame.draw.ellipse(edge_surf, edge_color, (w//2 - pw//2, h//2 - pw//2, pw, pw), 2)
         self.screen.blit(edge_surf, (x, y))
 
         # 4) Highlight bóng sáng
-        self.draw_pipe_gloss(x, y, w, h, pw, arms)
+        if p_type != logic.PIPE_LOCKED:
+            self.draw_pipe_gloss(x, y, w, h, pw, arms)
 
         # 5) Nước chảy neon (giữ nguyên)
         if highlight:
             self.draw_pipe_flow(x, y, w, h, pw, arms)
 
-        # 6) Mũi tên nếu là ống 1 chiều (giữ nguyên)
+        # 6) Mũi tên nếu là ống 1 chiều hoặc Biểu tượng khóa
         if p_type == logic.PIPE_ONE_WAY:
             self.draw_arrow(cx, cy, pw, rot)
+        elif p_type == logic.PIPE_LOCKED:
+            # Draw a small lock icon
+            lock_rect = pygame.Rect(cx - 6, cy - 6, 12, 12)
+            pygame.draw.rect(self.screen, (255, 50, 50), lock_rect, border_radius=2)
+            pygame.draw.circle(self.screen, (255, 50, 50), (cx, cy - 6), 5, width=2)
 
     def draw_gradient_arm(self, surf, arm, w, h, pw):
         # Vẽ nhánh ống với gradient xanh đậm mượt (theo hướng arm)
@@ -456,7 +586,7 @@ class PipeGameGraphics:
     # =========================
     # BUTTONS
     # =========================
-    def draw_buttons(self):
+    def draw_buttons(self, hints_left=3):
         btn_w = 140
         btn_h = 52
         spacing = 28
@@ -474,7 +604,7 @@ class PipeGameGraphics:
 
         btns = [self.btn_ai, self.btn_back, self.btn_next, self.btn_reset]
         btn_names = ["ai", "back", "next", "reset"]
-        btn_labels = ["Auto AI", "Back Lvl", "Next Lvl", "Reset"]
+        btn_labels = [f"Gợi ý ({hints_left})", "Back Lvl", "Next Lvl", "Reset"]
 
         # =========================
         # VẼ TỪNG NÚT
@@ -558,11 +688,141 @@ class PipeGameGraphics:
     # =========================
     # CLICK GRID
     # =========================
-    def get_grid_pos(self, mouse_pos):
+    def get_grid_pos(self, mouse_pos, logic):
         mx, my = mouse_pos
         if self.offset_x <= mx <= self.offset_x + self.grid_area_size and \
            self.offset_y <= my <= self.offset_y + self.grid_area_size:
             c = (mx - self.offset_x) // self.cell_size
             r = (my - self.offset_y) // self.cell_size
-            return r, c
-        return None
+            if 0 <= r < logic.size and 0 <= c < logic.size:
+                return r, c
+            return None
+
+    # =========================
+    # MENU & LEVEL SELECT
+    # =========================
+    def draw_menu(self):
+        self.draw_gradient_background()
+        
+        # Title
+        title_surf = self.font_title.render("PIPE PUZZLE", True, (0, 220, 255))
+        title_rect = title_surf.get_rect(center=(self.width // 2, self.height // 3))
+        
+        # Drawing a glow behind the title
+        glow_surf = pygame.Surface((title_rect.width + 40, title_rect.height + 40), pygame.SRCALPHA)
+        pygame.draw.ellipse(glow_surf, (0, 180, 255, 40), (0, 0, title_rect.width + 40, title_rect.height + 40))
+        self.screen.blit(glow_surf, (title_rect.x - 20, title_rect.y - 20))
+        self.screen.blit(title_surf, title_rect)
+        
+        # Play Button
+        btn_w, btn_h = 240, 80
+        self.btn_play = pygame.Rect((self.width - btn_w) // 2, self.height // 2 + 50, btn_w, btn_h)
+        
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = self.btn_play.collidepoint(mouse_pos)
+        
+        # Draw Play Button
+        color = self.BTN_GRAD_HOVER_TOP if hovered else self.BTN_GRAD_TOP
+        pygame.draw.rect(self.screen, color, self.btn_play, border_radius=20)
+        pygame.draw.rect(self.screen, (255, 255, 255), self.btn_play, 3, border_radius=20)
+        
+        play_txt = self.font.render("PLAY", True, (255, 255, 255))
+        txt_rect = play_txt.get_rect(center=self.btn_play.center)
+        self.screen.blit(play_txt, txt_rect)
+        
+        pygame.display.flip()
+
+    def draw_level_select(self, max_level_count=9, unlocked_up_to=1, level_stars=None, total_stars=0):
+        if level_stars is None: level_stars = {}
+        self.draw_gradient_background()
+        
+        # Header with Total Stars
+        title_surf = self.font_header.render("SELECT LEVEL", True, (255, 255, 255))
+        title_rect = title_surf.get_rect(center=(self.width // 2, 70))
+        self.screen.blit(title_surf, title_rect)
+        
+        total_stars_txt = self.font_star.render(f"⭐ Total Stars: {total_stars}", True, (255, 215, 0))
+        self.screen.blit(total_stars_txt, (self.width - 200, 30))
+
+        self.level_btns = []
+        btn_size = 110
+        padding = 40
+        start_x = (self.width - (btn_size * 3 + padding * 2)) // 2
+        start_y = 150
+        
+        mouse_pos = pygame.mouse.get_pos()
+        
+        for i in range(1, max_level_count + 1):
+            row = (i - 1) // 3
+            col = (i - 1) % 3
+            
+            x = start_x + col * (btn_size + padding)
+            y = start_y + row * (btn_size + padding + 30) # extra space for stars
+            rect = pygame.Rect(x, y, btn_size, btn_size)
+            self.level_btns.append((rect, i))
+            
+            is_unlocked = i <= unlocked_up_to
+            hovered = rect.collidepoint(mouse_pos) and is_unlocked
+            
+            # --- Draw Button ---
+            if is_unlocked:
+                color = (0, 220, 255) if hovered else (0, 100, 255)
+                pygame.draw.rect(self.screen, color, rect, border_radius=20)
+                lvl_txt = self.font.render(str(i), True, (255, 255, 255))
+                
+                # Draw Stars for level
+                stars = level_stars.get(i, 0)
+                self.draw_stars_at(rect.centerx, rect.bottom + 20, stars)
+            else:
+                pygame.draw.rect(self.screen, (60, 60, 60), rect, border_radius=20)
+                # Req stars info
+                req_stars = 0
+                if i >= 4: req_stars = 6
+                if i >= 7: req_stars = 12
+                
+                lvl_txt = self.font_lock.render(f"LOCKED", True, (150, 150, 150))
+                req_txt = self.font_lock.render(f"needs {req_stars} ⭐", True, (255, 100, 100))
+                self.screen.blit(req_txt, req_txt.get_rect(center=(rect.centerx, rect.centery + 20)))
+
+            txt_rect = lvl_txt.get_rect(center=rect.center if is_unlocked else (rect.centerx, rect.centery - 10))
+            self.screen.blit(lvl_txt, txt_rect)
+            pygame.draw.rect(self.screen, (255, 255, 255), rect, 2, border_radius=20)
+
+        # Back icon
+        self.btn_back_to_menu = pygame.Rect(30, 30, 120, 40)
+        hovered_back = self.btn_back_to_menu.collidepoint(mouse_pos)
+        pygame.draw.rect(self.screen, (60, 60, 90) if not hovered_back else (100, 100, 150), self.btn_back_to_menu, border_radius=10)
+        back_txt = self.font_small.render("MENU", True, (255, 255, 255))
+        self.screen.blit(back_txt, back_txt.get_rect(center=self.btn_back_to_menu.center))
+
+        pygame.display.flip()
+
+    def draw_stars_at(self, cx, cy, count):
+        star_w = 24
+        spacing = 6
+        total_w = (star_w * 3) + (spacing * 2)
+        start_x = cx - total_w // 2
+        for i in range(3):
+            color = (255, 215, 0) if i < count else (60, 60, 60)
+            x = start_x + i * (star_w + spacing)
+            # Simple star shape (diamond/polygon)
+            pygame.draw.polygon(self.screen, color, [
+                (x+12, cy-12), (x+15, cy-4), (x+24, cy-4), (x+17, cy+2), 
+                (x+20, cy+11), (x+12, cy+6), (x+4, cy+11), (x+7, cy+2), 
+                (x, cy-4), (x+9, cy-4)
+            ])
+
+    def draw_game_over(self):
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0,0))
+        
+        txt = self.font_go_msg.render("GAME OVER", True, (255, 50, 50))
+        rect = txt.get_rect(center=(self.width//2, self.height//2 - 50))
+        self.screen.blit(txt, rect)
+        
+        sub_txt = self.font_go_sub.render("Click Reset to try again", True, (255, 255, 255))
+        sub_rect = sub_txt.get_rect(center=(self.width//2, self.height//2 + 50))
+        self.screen.blit(sub_txt, sub_rect)
+        
+        pygame.display.flip()
